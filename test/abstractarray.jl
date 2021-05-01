@@ -1317,3 +1317,22 @@ end
     @test @inferred(reduce(vcat, x_vecs)) == [5.0, 1.0, 2.0, 3.0]
     @test @inferred(reduce(vcat, ([10.0], [20.0], Bool[]))) == [10.0, 20.0]
 end
+
+@testset "eltype conversion for ReshapedArray" begin
+    r = 1:4
+    R = reshape(r, 2, 2)
+    for T in [Float64, BigInt]
+        S = map(T, R)
+        @test eltype(S) == T
+        @test S == R
+        @test parent(S) isa AbstractRange
+    end
+
+    # a more complicated case
+    R = reshape(reinterpret(Float64, ComplexF64[i for i = 1:4]), 1, :)
+    for T in [Int, BigInt]
+        S = map(T, R)
+        @test eltype(S) == T
+        @test S == R
+    end
+end
