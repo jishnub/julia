@@ -1889,3 +1889,11 @@ end
     @test_throws BoundsError r[true:true:false]
     @test_throws BoundsError r[true:true:true]
 end
+
+@testset "issue #40760" begin
+    empty_range = 1:0
+    for r in Any[false:false, false:true:false, 1:2, 1:1:2]
+        @test r[1:0] == empty_range
+        @test r[1:1:0] == empty_range
+    end
+end
