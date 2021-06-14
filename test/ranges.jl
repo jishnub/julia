@@ -1950,7 +1950,6 @@ end
                 @test r[s] === s
             end
             @test_throws BoundsError r[Base.IdentityUnitRange(first(r):last(r) + 1)]
-            @test_throws BoundsError r[Base.Slice(first(r):last(r) + 1)]
         end
     end
 end
