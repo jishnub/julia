@@ -1412,3 +1412,7 @@ end
     @test_throws ArgumentError keepat!(a, [2, 1])
     @test isempty(keepat!(a, []))
 end
+
+@testset "reshape for offset arrays" begin
+    @test_throws ArgumentError reshape(Base.IdentityUnitRange(0:1), (2,1))
+end
