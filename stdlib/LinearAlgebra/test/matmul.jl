@@ -259,6 +259,40 @@ end
     end
 end
 
+@testset "real matrix x complex vec" begin
+    _matmulres(M, v) = [mapreduce(*, +, row, v) for row in eachrow(M)]
+    testmatmul(M, v) = @test M * v ≈ _matmulres(M, v)
+
+    @testset for T in (Float32, Float64), n = (4, 5)
+        M1 = reshape(Vector{T}(1:n^2), n, n)
+        M2 = reinterpret(reshape, T, [Tuple(T(i + j) for j in 1:n) for i in 1:n])
+        v = convert(Vector{Complex{T}}, (1:n) .+ im .* (4 .+ (1:n)))
+
+        for M in (M1, M2)
+            M_view_cont = @view M[:, :]
+            v_view_cont = @view v[:]
+            for _M in (M, M_view_cont), _v in (v, v_view_cont)
+                testmatmul(_M, _v)
+            end
+
+            # construct a view with strides(M, 1) == 1 and strides(M, 2) != 1
+            ax_noncont = 1:2:n
+            n1 = length(ax_noncont)
+            M_view_noncont = @view M[1:n1, ax_noncont]
+            v_view_noncont = @view v[ax_noncont]
+            testmatmul(M_view_noncont, v_view_noncont)
+
+            @testset for op in (transpose, adjoint)
+                for _M in (M, M_view_cont), _v in (v, v_view_cont)
+                    _M2 = op(_M)
+                    testmatmul(_M2, _v)
+                end
+                _M2 = op(M_view_noncont)
+                testmatmul(_M2, v_view_noncont)
+            end
+        end
+    end
+end
 
 @testset "issue #15286" begin
     A = reshape(map(Float64, 1:20), 5, 4)
