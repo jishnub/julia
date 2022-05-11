@@ -943,10 +943,17 @@ function getindex(A::Array, c::Colon)
     return X
 end
 
-# This is redundant with the abstract fallbacks, but needed for bootstrap
-function getindex(A::Array{S}, I::AbstractRange{Int}) where S
-    return S[ A[i] for i in I ]
+function getindex(A::Array, I::AbstractRange{<:Integer})
+    @inline
+    @boundscheck checkbounds(A, I)
+    B = similar(A, axes(I))
+    @inbounds for (Bind, Aind) in pairs(I)
+        B[Bind] = A[Aind]
+    end
+    return B
 end
+
+getindex(a::Array, r::AbstractRange{Bool}) = getindex(a, to_index(r))
 
 ## Indexing: setindex! ##
 

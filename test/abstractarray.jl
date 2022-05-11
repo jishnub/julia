@@ -1345,6 +1345,32 @@ end
         @test_throws BoundsError arr[false:false]
     end
 end
+@testset "indexing arrays with stepranges" begin
+    for arr in ([1:10;], reshape([1.0:16.0;],4,4), reshape(['a':'h';],2,2,2))
+        for inds in (2:1:5, 2:2:8)
+            ai = arr[inds]
+            @test ai == arr[collect(inds)]
+            @test ai isa AbstractVector{eltype(arr)}
+        end
+        @test_throws BoundsError arr[1:2:10000]
+        # test that stepranges with a step of 1 behave identically to unitranges
+        @test arr[2:1:5] == arr[2:5]
+    end
+    @testset "boolean ranges" begin
+        for arr in ([1], reshape([1.0],1,1), reshape(['a'],1,1,1))
+            ai = arr[true:true:true]
+            @test ai == [arr[1]]
+            @test ai isa AbstractVector{eltype(arr)}
+            ai = arr[false:true:false]
+            @test ai == []
+            @test ai isa AbstractVector{eltype(arr)}
+        end
+        for arr in ([1:10;], reshape([1.0:16.0;],4,4), reshape(['a':'h';],2,2,2))
+            @test_throws BoundsError arr[true:true:true]
+            @test_throws BoundsError arr[false:true:false]
+        end
+    end
+end
 
 using Base: typed_hvncat
 @testset "hvncat" begin
