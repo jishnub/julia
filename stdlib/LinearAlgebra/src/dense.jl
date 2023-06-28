@@ -350,9 +350,9 @@ function tr(A::Matrix{T}) where T
     t
 end
 
-_kronsize(A::AbstractMatrix, B::AbstractMatrix) = map(*, size(A), size(B))
-_kronsize(A::AbstractMatrix, B::AbstractVector) = (size(A, 1)*length(B), size(A, 2))
-_kronsize(A::AbstractVector, B::AbstractMatrix) = (length(A)*size(B, 1), size(B, 2))
+function _kronsize(A::AbstractVecOrMat, B::AbstractVecOrMat)
+    ntuple(i->size(A,i)*size(B,i), Val(max(ndims(A), ndims(B))))
+end
 
 """
     kron!(C, A, B)
