@@ -4,52 +4,61 @@
 import Base.Broadcast
 using Base.Broadcast: DefaultArrayStyle, Broadcasted
 
-struct StructuredMatrixStyle{T} <: Broadcast.AbstractArrayStyle{2} end
-StructuredMatrixStyle{T}(::Val{2}) where {T} = StructuredMatrixStyle{T}()
-StructuredMatrixStyle{T}(::Val{N}) where {T,N} = Broadcast.DefaultArrayStyle{N}()
+struct StructuredMatrixStyle{T,M} <: Broadcast.AbstractArrayStyle{2} end
+StructuredMatrixStyle{T,MT}(::Val{2}) where {T,MT} = StructuredMatrixStyle{T,MT}()
+StructuredMatrixStyle{T,MT}(::Val{N}) where {T,N,MT} = Broadcast.DefaultArrayStyle{N}()
 
 const StructuredMatrix{T} = Union{Diagonal{T},Bidiagonal{T},SymTridiagonal{T},Tridiagonal{T},LowerTriangular{T},UnitLowerTriangular{T},UpperTriangular{T},UnitUpperTriangular{T}}
-for ST in (Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal,LowerTriangular,UnitLowerTriangular,UpperTriangular,UnitUpperTriangular)
-    @eval Broadcast.BroadcastStyle(::Type{<:$ST}) = $(StructuredMatrixStyle{ST}())
+for ST in (Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal)
+    @eval function Broadcast.BroadcastStyle(::Type{$ST{T,V}}) where {T,V}
+        VT = typeof(Broadcast.BroadcastStyle(V))
+        StructuredMatrixStyle{$ST,VT}()
+    end
+end
+for ST in (LowerTriangular,UnitLowerTriangular,UpperTriangular,UnitUpperTriangular)
+    @eval function Broadcast.BroadcastStyle(::Type{$ST{T,M}}) where {T,M}
+        MT = typeof(Broadcast.BroadcastStyle(M))
+        StructuredMatrixStyle{$ST,MT}()
+    end
 end
 
 # Promotion of broadcasts between structured matrices. This is slightly unusual
 # as we define them symmetrically. This allows us to have a fallback to DefaultArrayStyle{2}().
 # Diagonal can cavort with all the other structured matrix types.
 # Bidiagonal doesn't know if it's upper or lower, so it becomes Tridiagonal
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal}, ::StructuredMatrixStyle{Diagonal}) =
-    StructuredMatrixStyle{Diagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal}, ::StructuredMatrixStyle{Bidiagonal}) =
-    StructuredMatrixStyle{Bidiagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal}, ::StructuredMatrixStyle{<:Union{SymTridiagonal,Tridiagonal}}) =
-    StructuredMatrixStyle{Tridiagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal}, ::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular}}) =
-    StructuredMatrixStyle{LowerTriangular}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal}, ::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular}}) =
-    StructuredMatrixStyle{UpperTriangular}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal,V1}, ::StructuredMatrixStyle{Diagonal,V2}) where {V1,V2} =
+    StructuredMatrixStyle{Diagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal, V1}, ::StructuredMatrixStyle{Bidiagonal, V2}) where {V1,V2} =
+    StructuredMatrixStyle{Bidiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal,V1}, ::StructuredMatrixStyle{<:Union{SymTridiagonal,Tridiagonal},V2}) where {V1,V2} =
+    StructuredMatrixStyle{Tridiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal,V}, ::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular},M}) where {V,M} =
+    StructuredMatrixStyle{LowerTriangular, typeof(Broadcast.BroadcastStyle(V(), M()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Diagonal,V}, ::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular},M}) where {V,M} =
+    StructuredMatrixStyle{UpperTriangular, typeof(Broadcast.BroadcastStyle(V(), M()))}()
 
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Bidiagonal}, ::StructuredMatrixStyle{Diagonal}) =
-    StructuredMatrixStyle{Bidiagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Bidiagonal}, ::StructuredMatrixStyle{<:Union{Bidiagonal,SymTridiagonal,Tridiagonal}}) =
-    StructuredMatrixStyle{Tridiagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{SymTridiagonal}, ::StructuredMatrixStyle{<:Union{Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal}}) =
-    StructuredMatrixStyle{Tridiagonal}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{Tridiagonal}, ::StructuredMatrixStyle{<:Union{Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal}}) =
-    StructuredMatrixStyle{Tridiagonal}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Bidiagonal, V1}, ::StructuredMatrixStyle{Diagonal, V2}) where {V1,V2} =
+    StructuredMatrixStyle{Bidiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Bidiagonal, V1}, ::StructuredMatrixStyle{<:Union{Bidiagonal,SymTridiagonal,Tridiagonal}, V1}) where {V1,V2} =
+    StructuredMatrixStyle{Tridiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{SymTridiagonal, V1}, ::StructuredMatrixStyle{<:Union{Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal}, V1}) where {V1,V2} =
+    StructuredMatrixStyle{Tridiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{Tridiagonal, V1}, ::StructuredMatrixStyle{<:Union{Diagonal,Bidiagonal,SymTridiagonal,Tridiagonal}, V1}) where {V1,V2} =
+    StructuredMatrixStyle{Tridiagonal, typeof(Broadcast.BroadcastStyle(V1(), V2()))}()
 
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{LowerTriangular}, ::StructuredMatrixStyle{<:Union{Diagonal,LowerTriangular,UnitLowerTriangular}}) =
-    StructuredMatrixStyle{LowerTriangular}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{UpperTriangular}, ::StructuredMatrixStyle{<:Union{Diagonal,UpperTriangular,UnitUpperTriangular}}) =
-    StructuredMatrixStyle{UpperTriangular}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{UnitLowerTriangular}, ::StructuredMatrixStyle{<:Union{Diagonal,LowerTriangular,UnitLowerTriangular}}) =
-    StructuredMatrixStyle{LowerTriangular}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{UnitUpperTriangular}, ::StructuredMatrixStyle{<:Union{Diagonal,UpperTriangular,UnitUpperTriangular}}) =
-    StructuredMatrixStyle{UpperTriangular}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{LowerTriangular, M}, ::StructuredMatrixStyle{<:Union{Diagonal,LowerTriangular,UnitLowerTriangular}, VM}) where {M,VM} =
+    StructuredMatrixStyle{LowerTriangular, typeof(Broadcast.BroadcastStyle(M(), VM()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{UpperTriangular, M}, ::StructuredMatrixStyle{<:Union{Diagonal,UpperTriangular,UnitUpperTriangular}, VM}) where {M,VM} =
+    StructuredMatrixStyle{UpperTriangular, typeof(Broadcast.BroadcastStyle(M(), VM()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{UnitLowerTriangular, M}, ::StructuredMatrixStyle{<:Union{Diagonal,LowerTriangular,UnitLowerTriangular}, VM}) where {M,VM} =
+    StructuredMatrixStyle{LowerTriangular, typeof(Broadcast.BroadcastStyle(M(), VM()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{UnitUpperTriangular, M}, ::StructuredMatrixStyle{<:Union{Diagonal,UpperTriangular,UnitUpperTriangular}, VM}) where {M,VM} =
+    StructuredMatrixStyle{UpperTriangular, typeof(Broadcast.BroadcastStyle(M(), VM()))}()
 
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular}}, ::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular}}) =
-    StructuredMatrixStyle{Matrix}()
-Broadcast.BroadcastStyle(::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular}}, ::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular}}) =
-    StructuredMatrixStyle{Matrix}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular},M1}, ::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular},M2}) where {M1,M2} =
+    StructuredMatrixStyle{Matrix,typeof(Broadcast.BroadcastStyle(M1(), M2()))}()
+Broadcast.BroadcastStyle(::StructuredMatrixStyle{<:Union{UpperTriangular,UnitUpperTriangular},M1}, ::StructuredMatrixStyle{<:Union{LowerTriangular,UnitLowerTriangular},M2}) where {M1,M2} =
+    StructuredMatrixStyle{Matrix, typeof(Broadcast.BroadcastStyle(M1(), M2()))}()
 
 # Make sure that `StructuredMatrixStyle{Matrix}` doesn't ever end up falling
 # through and give back `DefaultArrayStyle{2}`
@@ -60,8 +69,11 @@ Broadcast.BroadcastStyle(T::StructuredMatrixStyle{Matrix}, ::StructuredMatrixSty
 # All other combinations fall back to the default style
 Broadcast.BroadcastStyle(::StructuredMatrixStyle, ::StructuredMatrixStyle) = DefaultArrayStyle{2}()
 
+# legacy method that dispatched on the StructuredMatrixStyle type parameter
+structured_broadcast_alloc(bc, T, ElType, n) = structured_broadcast_alloc(bc, ElType, n)
+
 # And a definition akin to similar using the structured type:
-structured_broadcast_alloc(bc, ::Type{Diagonal}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{Diagonal}}, ::Type{ElType}, n) where {ElType} =
     Diagonal(Array{ElType}(undef, n))
 # Bidiagonal is tricky as we need to know if it's upper or lower. The promotion
 # system will return Tridiagonal when there's more than one Bidiagonal, but when
@@ -75,7 +87,7 @@ find_uplo(a::Bidiagonal) = a.uplo
 find_uplo(a) = nothing
 find_uplo(bc::Broadcasted) = mapfoldl(find_uplo, merge_uplos, Broadcast.cat_nested(bc), init=nothing)
 
-function structured_broadcast_alloc(bc, ::Type{Bidiagonal}, ::Type{ElType}, n) where {ElType}
+function structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{Bidiagonal}}, ::Type{ElType}, n) where {ElType}
     uplo = n > 0 ? find_uplo(bc) : 'U'
     n1 = max(n - 1, 0)
     if count_structedmatrix(Bidiagonal, bc) > 1 && uplo == 'T'
@@ -83,19 +95,19 @@ function structured_broadcast_alloc(bc, ::Type{Bidiagonal}, ::Type{ElType}, n) w
     end
     return Bidiagonal(Array{ElType}(undef, n),Array{ElType}(undef, n1), uplo)
 end
-structured_broadcast_alloc(bc, ::Type{SymTridiagonal}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{SymTridiagonal}}, ::Type{ElType}, n) where {ElType} =
     SymTridiagonal(Array{ElType}(undef, n),Array{ElType}(undef, n-1))
-structured_broadcast_alloc(bc, ::Type{Tridiagonal}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{Tridiagonal}}, ::Type{ElType}, n) where {ElType} =
     Tridiagonal(Array{ElType}(undef, n-1),Array{ElType}(undef, n),Array{ElType}(undef, n-1))
-structured_broadcast_alloc(bc, ::Type{LowerTriangular}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{LowerTriangular}}, ::Type{ElType}, n) where {ElType} =
     LowerTriangular(Array{ElType}(undef, n, n))
-structured_broadcast_alloc(bc, ::Type{UpperTriangular}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{UpperTriangular}}, ::Type{ElType}, n) where {ElType} =
     UpperTriangular(Array{ElType}(undef, n, n))
-structured_broadcast_alloc(bc, ::Type{UnitLowerTriangular}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{UnitLowerTriangular}}, ::Type{ElType}, n) where {ElType} =
     UnitLowerTriangular(Array{ElType}(undef, n, n))
-structured_broadcast_alloc(bc, ::Type{UnitUpperTriangular}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{UnitUpperTriangular}}, ::Type{ElType}, n) where {ElType} =
     UnitUpperTriangular(Array{ElType}(undef, n, n))
-structured_broadcast_alloc(bc, ::Type{Matrix}, ::Type{ElType}, n) where {ElType} =
+structured_broadcast_alloc(bc::Broadcast.Broadcasted{<:StructuredMatrixStyle{Matrix}}, ::Type{ElType}, n) where {ElType} =
     Array{ElType}(undef, n, n)
 
 # A _very_ limited list of structure-preserving functions known at compile-time. This list is
@@ -168,15 +180,15 @@ function fzero(bc::Broadcast.Broadcasted)
     return any(isnothing, args) ? nothing : Some(bc.f(map(something, args)...))
 end
 
-function Base.similar(bc::Broadcasted{StructuredMatrixStyle{T}}, ::Type{ElType}) where {T,ElType}
+function Base.similar(bc::Broadcasted{StructuredMatrixStyle{T,M}}, ::Type{ElType}) where {T,M,ElType}
     inds = axes(bc)
     fzerobc = fzeropreserving(bc)
     if isstructurepreserving(bc) || (fzerobc && !(T <: Union{SymTridiagonal,UnitLowerTriangular,UnitUpperTriangular}))
-        return structured_broadcast_alloc(bc, T, ElType, length(inds[1]))
+        return structured_broadcast_alloc(bc, ElType, length(inds[1]))
     elseif fzerobc && T <: UnitLowerTriangular
-        return similar(convert(Broadcasted{StructuredMatrixStyle{LowerTriangular}}, bc), ElType)
+        return similar(convert(Broadcasted{StructuredMatrixStyle{LowerTriangular,M}}, bc), ElType)
     elseif fzerobc && T <: UnitUpperTriangular
-        return similar(convert(Broadcasted{StructuredMatrixStyle{UpperTriangular}}, bc), ElType)
+        return similar(convert(Broadcasted{StructuredMatrixStyle{UpperTriangular,M}}, bc), ElType)
     end
     return similar(convert(Broadcasted{DefaultArrayStyle{ndims(bc)}}, bc), ElType)
 end
